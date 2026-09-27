@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodePilot — Multi-Agent AI Code Review</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,sans-serif;background:#070b14;color:#eef3ff}
+.container{max-width:1400px;margin:auto;padding:28px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#7c5cff,#23c9e8);display:grid;place-items:center;font-weight:900}
+h1{margin:0;font-size:27px}.sub{color:#8d9bb5;margin-top:5px;font-size:13px}
+.badge{border:1px solid #263653;color:#35d39a;padding:8px 13px;border-radius:20px;font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.panel{background:#0f1626;border:1px solid #263653;border-radius:18px;overflow:hidden}
+.panel-title{padding:16px 18px;border-bottom:1px solid #263653;font-weight:700}
+.toolbar{padding:14px 18px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #263653}
+select{background:#121c30;color:#fff;border:1px solid #334563;padding:10px 12px;border-radius:9px}
+textarea{display:block;width:100%;height:480px;resize:vertical;background:#09101d;color:#dce7ff;border:0;outline:0;padding:20px;font:14px/1.6 Menlo,Monaco,Consolas,monospace}
+.controls{padding:14px 18px;border-top:1px solid #263653;display:flex;gap:10px}
+button{border:0;border-radius:9px;padding:11px 17px;font-weight:700;cursor:pointer}
+.primary{background:linear-gradient(135deg,#7c5cff,#5d82ff);color:white;min-width:180px}
+.secondary{background:#18243a;color:#dbe5fa;border:1px solid #30415f}
+button:disabled{opacity:.5;cursor:not-allowed}
+.results{padding:18px;min-height:590px;overflow:auto}
+.empty{height:550px;display:grid;place-items:center;color:#7788a7;text-align:center}
+.summary{background:#121c30;border:1px solid #263653;border-radius:12px;padding:15px;margin-bottom:16px}
+.summary h3{margin:0 0 8px}.summary p{margin:0;color:#aab7ce;line-height:1.6}
+.agents{display:grid;grid-template-columns:1fr;gap:12px}
+.agent{border:1px solid #263653;border-radius:12px;padding:15px;background:#0c1322}
+.agent h3{margin:0 0 7px;font-size:15px}.agent p{color:#8f9db6;font-size:13px}
+ul{padding-left:20px;color:#c7d3e8;line-height:1.7}
+.section{margin-top:16px}.section h3{font-size:15px}
+.loading{display:none;color:#aebbd2;padding:10px 0}
+.error{background:#351522;color:#ff9bad;padding:12px;border-radius:10px;margin-bottom:15px;display:none}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.results{min-height:auto}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div class="brand">
+<div class="logo">CP</div>
+<div>
+<h1>CodePilot</h1>
+<div class="sub">Multi-Agent AI Code Intelligence Platform</div>
+</div>
+</div>
+<div class="badge">● Spring Boot + Groq</div>
+</header>
+
+<div class="grid">
+<section class="panel">
+<div class="panel-title">Code Input</div>
+<div class="toolbar">
+<select id="language">
+<option value="Java">Java</option>
+<option value="C++">C++</option>
+<option value="Python">Python</option>
+<option value="JavaScript">JavaScript</option>
+</select>
+</div>
+<textarea id="code" placeholder="Paste your code here..."></textarea>
+<div class="controls">
+<button id="analyzeBtn" class="primary" onclick="analyzeCode()">▶ Analyze Code</button>
+<button class="secondary" onclick="clearAll()">Clear</button>
+</div>
+</section>
+
+<section class="panel">
+<div class="panel-title">Multi-Agent Result</div>
+<div class="results" id="results">
+<div class="empty">
+<div>
+<div style="font-size:38px;margin-bottom:10px">🤖</div>
+<div>Paste code and click <b>Analyze Code</b></div>
+<div style="font-size:12px;margin-top:7px">Three agents will review it independently.</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+
+<script>
+async function analyzeCode(){
+    const code=document.getElementById('code').value.trim();
+    const language=document.getElementById('language').value;
+    const btn=document.getElementById('analyzeBtn');
+    const results=document.getElementById('results');
+
+    if(!code){
+        alert('Please paste your code first.');
+        return;
+    }
+
+    btn.disabled=true;
+    btn.textContent='Analyzing...';
+
+    results.innerHTML=`
+        <div style="text-align:center;padding:100px 20px;color:#94a3bd">
+            <div style="font-size:40px">⚙️</div>
+            <h3>Three agents are analyzing your code...</h3>
+            <p>Code Analysis → Bug Detection → Code Quality</p>
+        </div>`;
+
+    try{
+        const response=await fetch('/api/analyze',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({language:language,code:code})
+        });
+
+        if(!response.ok){
+            const text=await response.text();
+            throw new Error(text || 'Request failed');
+        }
+
+        const data=await response.json();
+        renderResult(data);
+    }catch(error){
+        results.innerHTML=`
+            <div class="error" style="display:block">
+                <b>Analysis failed</b><br>
+                ${escapeHtml(error.message)}
+            </div>`;
+    }finally{
+        btn.disabled=false;
+        btn.textContent='▶ Analyze Code';
+    }
+}
+
+function renderResult(data){
+    const results=document.getElementById('results');
+
+    results.innerHTML=`
+        <div class="summary">
+            <h3>Overall Summary</h3>
+            <p>${escapeHtml(data.overallSummary || '')}</p>
+            <div style="margin-top:10px;font-size:12px;color:#8d9bb5">
+                Language: <b style="color:#fff">${escapeHtml(data.language || '')}</b>
+            </div>
+        </div>
+
+        <div class="agents">
+            ${agentCard(data.codeAnalysis)}
+            ${agentCard(data.bugDetection)}
+            ${agentCard(data.codeQuality)}
+        </div>
+
+        <div class="section">
+            <h3>Key Issues</h3>
+            ${list(data.keyIssues)}
+        </div>
+
+        <div class="section">
+            <h3>Recommendations</h3>
+            ${list(data.recommendations)}
+        </div>`;
+}
+
+function agentCard(agent){
+    if(!agent)return '';
+
+    return `
+        <div class="agent">
+            <h3>🤖 ${escapeHtml(agent.agent || 'Agent')}</h3>
+            <p>${escapeHtml(agent.summary || '')}</p>
+            ${list(agent.findings)}
+        </div>`;
+}
+
+function list(items){
+    if(!items || !items.length)return '<p style="color:#7788a7">No findings.</p>';
+
+    return '<ul>'+items.map(x=>`<li>${escapeHtml(String(x).replace(/^[-•*]\s*/,''))}</li>`).join('')+'</ul>';
+}
+
+function escapeHtml(value){
+    return String(value)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'",'&#039;');
+}
+
+function clearAll(){
+    document.getElementById('code').value='';
+    document.getElementById('results').innerHTML=`
+        <div class="empty">
+            <div>
+                <div style="font-size:38px;margin-bottom:10px">🤖</div>
+                <div>Paste code and click <b>Analyze Code</b></div>
+                <div style="font-size:12px;margin-top:7px">Three agents will review it independently.</div>
+            </div>
+        </div>`;
+}
+</script>
+</body>
+</html>
